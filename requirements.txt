@@ -1,0 +1,9 @@
+torch
+torchvision
+einops
+scipy
+tqdm
+ema_pytorch
+accelerate
+pytorch_fid
+opencv-python

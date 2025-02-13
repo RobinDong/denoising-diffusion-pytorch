@@ -944,7 +944,7 @@ class Trainer:
 
         assert len(self.ds) >= 100, 'you should have at least 100 images in your folder. at least 10k images recommended'
 
-        dl = DataLoader(self.ds, batch_size = train_batch_size, shuffle = True, pin_memory = True, num_workers = cpu_count())
+        dl = DataLoader(self.ds, batch_size = train_batch_size, shuffle = True, pin_memory = True, num_workers = 32, prefetch_factor=4, persistent_workers=True)
 
         dl = self.accelerator.prepare(dl)
         self.dl = cycle(dl)
@@ -968,7 +968,11 @@ class Trainer:
 
         # prepare model, dataloader, optimizer with accelerator
 
-        self.model, self.opt = self.accelerator.prepare(self.model, self.opt)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(
+            self.opt, list(range(6, 100, 5)), gamma=0.9
+        )
+
+        self.model, self.opt, self.scheduler = self.accelerator.prepare(self.model, self.opt, scheduler)
 
         # FID-score computation
 
@@ -1076,6 +1080,9 @@ class Trainer:
                     self.ema.update()
 
                     if self.step != 0 and divisible_by(self.step, self.save_and_sample_every):
+                        self.scheduler.step()
+                        current_lr = self.scheduler.get_last_lr()[0]
+                        print(f"current_lr: {current_lr}")
                         self.ema.ema_model.eval()
 
                         with torch.inference_mode():
