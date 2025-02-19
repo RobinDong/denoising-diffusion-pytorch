@@ -13,7 +13,7 @@ from torch.nn import Module, ModuleList
 from torch.amp import autocast
 from torch.utils.data import Dataset, DataLoader
 
-from torch.optim import Adam
+from torch.optim import AdamW
 
 from torchvision import transforms as T, utils
 
@@ -944,14 +944,14 @@ class Trainer:
 
         assert len(self.ds) >= 100, 'you should have at least 100 images in your folder. at least 10k images recommended'
 
-        dl = DataLoader(self.ds, batch_size = train_batch_size, shuffle = True, pin_memory = True, num_workers = 32, prefetch_factor=4, persistent_workers=True)
+        dl = DataLoader(self.ds, batch_size = train_batch_size, shuffle = True, pin_memory = True, num_workers = cpu_count() // 2, prefetch_factor=4, persistent_workers=True)
 
         dl = self.accelerator.prepare(dl)
         self.dl = cycle(dl)
 
         # optimizer
 
-        self.opt = Adam(diffusion_model.parameters(), lr = train_lr, betas = adam_betas)
+        self.opt = AdamW(diffusion_model.parameters(), lr = train_lr, betas = adam_betas)
 
         # for logging results in a folder periodically
 
@@ -1048,7 +1048,7 @@ class Trainer:
         accelerator = self.accelerator
         device = accelerator.device
 
-        with tqdm(initial = self.step, total = self.train_num_steps, disable = not accelerator.is_main_process) as pbar:
+        with tqdm(initial = self.step, total = self.train_num_steps, disable = not accelerator.is_main_process, bar_format='{percentage:3.0f}%|{n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]', mininterval=2.0) as pbar:
 
             while self.step < self.train_num_steps:
                 self.model.train()
@@ -1080,7 +1080,7 @@ class Trainer:
                     self.ema.update()
 
                     if self.step != 0 and divisible_by(self.step, self.save_and_sample_every):
-                        self.scheduler.step()
+                        # self.scheduler.step()
                         current_lr = self.scheduler.get_last_lr()[0]
                         print(f"current_lr: {current_lr}")
                         self.ema.ema_model.eval()
